@@ -32,4 +32,4 @@ def import_matches():
 
     conn.commit()
     conn.close()
-    print("✅ Matches imported with venue.")
+    print("✅ Matches imported.")
