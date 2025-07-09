@@ -17,8 +17,8 @@ def import_matches():
         for row in reader:
             cur.execute("""
                 INSERT OR REPLACE INTO matches
-                (match_id, home_team, away_team, winner, date, round, year)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (match_id, home_team, away_team, winner, date, round, year, venue)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 int(row['match_id']),
                 row['home_team'],
@@ -26,9 +26,10 @@ def import_matches():
                 row['winner'],
                 row['date'],
                 int(row['round']),
-                int(row['year'])
+                int(row['year']),
+                row['venue']
             ))
 
     conn.commit()
     conn.close()
-    print("✅ Matches imported from matches.csv.")
+    print("✅ Matches imported with venue.")
