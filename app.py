@@ -8,7 +8,7 @@ from feature_engineering import generate_features_for_match
 
 DB_NAME = "afl_stats.db"
 
-# ✅ Use Streamlit resource cache for setup
+# ✅ Streamlit resource cache ensures single setup run
 @st.cache_resource
 def ensure_database():
     if not os.path.exists(DB_NAME):
@@ -16,7 +16,6 @@ def ensure_database():
         create_tables()
         import_matches()
     else:
-        # Check if matches table exists and has data
         conn = sqlite3.connect(DB_NAME)
         cur = conn.cursor()
         try:
@@ -26,7 +25,7 @@ def ensure_database():
                 st.warning("⚠️ Matches table empty, re-importing...")
                 import_matches()
         except sqlite3.OperationalError:
-            st.warning("⚠️ Matches table missing, creating tables...")
+            st.warning("⚠️ Matches table missing, creating...")
             create_tables()
             import_matches()
         conn.close()
@@ -52,7 +51,7 @@ def main():
 
     matches = get_upcoming_matches()
     if not matches:
-        st.error("No matches found! Check your matches.csv or DB.")
+        st.error("No matches found! Please check matches.csv.")
         return
 
     match = st.selectbox(
@@ -64,7 +63,7 @@ def main():
     match_id = match[0]
     features = generate_features_for_match(match_id)
     if not features:
-        st.error("Could not generate features for this match.")
+        st.error("Could not generate features.")
         return
 
     st.subheader("Match Features")
