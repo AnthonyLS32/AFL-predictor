@@ -14,12 +14,13 @@ def create_tables():
             winner TEXT,
             date TEXT,
             round INTEGER,
-            year INTEGER
+            year INTEGER,
+            venue TEXT
         )
     """)
 
-    # Add other tables if needed: players, stats, lineups...
+    # Add other tables here if needed in future
 
     conn.commit()
     conn.close()
-    print("✅ Tables created.")
+    print("✅ Tables created (with venue).")
