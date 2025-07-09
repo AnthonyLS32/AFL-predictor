@@ -19,8 +19,6 @@ def create_tables():
         )
     """)
 
-    # Add other tables here if needed in future
-
     conn.commit()
     conn.close()
-    print("✅ Tables created (with venue).")
+    print("✅ Tables created with venue.")
