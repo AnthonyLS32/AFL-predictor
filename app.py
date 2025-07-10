@@ -1,62 +1,33 @@
 import streamlit as st
 import pandas as pd
-import os
-from predictor import predict_win_probability, load_model
-from feature_engineering import generate_features_for_match
-from scraper_utils import scrape_fixture, save_fixture, load_fixture
+from predictor import predict_win_probability
 
-# -------------------------
-# App Config
-# -------------------------
-MODEL_FILE = "model.pkl"
+matches = pd.read_csv("matches.csv")
 
-# -------------------------
-# App Start
-# -------------------------
-st.set_page_config(page_title="🏉 AFL Win Probability Predictor", layout="centered")
+def generate_features_for_match(match_id):
+    match = matches[matches['match_id'] == match_id].iloc[0]
+    is_home_advantage = 1
+    features = {
+        "home_team_recent_form": 1,
+        "away_team_recent_form": 0,
+        "is_home_advantage": is_home_advantage
+    }
+    return features
 
+st.set_page_config(page_title="🏉 AFL Predictor", layout="centered")
 st.title("🏉 AFL Win Probability Predictor")
 
-# -------------------------
-# Scrape Fixture or Load Cache
-# -------------------------
-if not os.path.exists("static/fixture.json"):
-    fixture = scrape_fixture()
-    save_fixture(fixture)
-else:
-    fixture = load_fixture()
+match_options = matches[['match_id', 'home_team', 'away_team', 'date']].drop_duplicates()
+match_options['label'] = match_options.apply(lambda x: f"{x['date']}: {x['home_team']} vs {x['away_team']}", axis=1)
+selected = st.selectbox("Select a match", match_options['label'].tolist())
 
-matches_df = pd.read_json("static/fixture.json")
+match_id = match_options[match_options['label'] == selected]['match_id'].values[0]
 
-# -------------------------
-# Pick or Upload
-# -------------------------
-st.sidebar.header("📅 Select Match or Upload")
+features = generate_features_for_match(match_id)
 
-match = st.sidebar.selectbox(
-    "Select a match",
-    matches_df["match_label"].tolist()
-)
+st.subheader("Match Features")
+st.json(features)
 
-uploaded_file = st.sidebar.file_uploader("Or upload your lineup CSV", type="csv")
-
-if uploaded_file:
-    custom_lineup = pd.read_csv(uploaded_file)
-    st.write("✅ Uploaded Lineup:")
-    st.dataframe(custom_lineup)
-else:
-    match_row = matches_df[matches_df["match_label"] == match].iloc[0]
-    match_id = match_row["match_id"]
-
-    st.subheader("Selected Match")
-    st.write(f"{match_row['match_label']}")
-    features = generate_features_for_match(match_row)
-
-    st.subheader("Match Features")
-    st.json(features)
-
-    if os.path.exists(MODEL_FILE):
-        prob = predict_win_probability(features)
-        st.success(f"🏆 **Predicted Home Win Probability:** {prob:.2%}")
-    else:
-        st.error("❌ No model found. Please run training to generate `model.pkl`.")
+if st.button("Predict Win Probability"):
+    prob = predict_win_probability(features)
+    st.success(f"🏉 Predicted Home Win Probability: {prob * 100:.1f}%")
