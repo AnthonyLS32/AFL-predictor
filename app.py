@@ -2,45 +2,30 @@ import os
 import sqlite3
 import streamlit as st
 from database_setup import create_tables
-from data_import import import_matches
+from data_import import import_matches, import_player_stats
 from predictor import predict_win_probability
 from feature_engineering import generate_features_for_match
 
 DB_NAME = "afl_stats.db"
 
-# ✅ Streamlit resource cache ensures single setup run
 @st.cache_resource
-def ensure_database():
+def ensure_db():
     if not os.path.exists(DB_NAME):
-        st.info("🗂️ Creating new database...")
         create_tables()
         import_matches()
-    else:
-        conn = sqlite3.connect(DB_NAME)
-        cur = conn.cursor()
-        try:
-            cur.execute("SELECT COUNT(*) FROM matches")
-            count = cur.fetchone()[0]
-            if count == 0:
-                st.warning("⚠️ Matches table empty, re-importing...")
-                import_matches()
-        except sqlite3.OperationalError:
-            st.warning("⚠️ Matches table missing, creating...")
-            create_tables()
-            import_matches()
-        conn.close()
+        import_player_stats()
 
-ensure_database()
+ensure_db()
 
 @st.cache_data
-def get_upcoming_matches():
+def get_matches():
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     cur.execute("""
         SELECT match_id, home_team, away_team, date, round, year
         FROM matches
-        ORDER BY year DESC, round DESC, date DESC
-        LIMIT 50
+        WHERE year >= 2010
+        ORDER BY year DESC, round DESC
     """)
     matches = cur.fetchall()
     conn.close()
@@ -49,28 +34,26 @@ def get_upcoming_matches():
 def main():
     st.title("🏉 AFL Win Probability Predictor")
 
-    matches = get_upcoming_matches()
+    matches = get_matches()
     if not matches:
-        st.error("No matches found! Please check matches.csv.")
+        st.error("No matches found. Please check your DB.")
         return
 
     match = st.selectbox(
-        "Select a match",
+        "Pick a match",
         matches,
-        format_func=lambda x: f"{x[5]} R{x[4]}: {x[1]} vs {x[2]} ({x[3]})"
+        format_func=lambda m: f"{m[5]} R{m[4]}: {m[1]} vs {m[2]} ({m[3]})"
     )
-
     match_id = match[0]
+
     features = generate_features_for_match(match_id)
-    if not features:
-        st.error("Could not generate features.")
-        return
+    st.write("Match Features:", features)
 
-    st.subheader("Match Features")
-    st.json(features)
-
-    prob = predict_win_probability(features)
-    st.success(f"Predicted Home Team Win Probability: {prob:.2%}")
+    try:
+        prob = predict_win_probability(features)
+        st.success(f"🏆 Home Win Probability: {prob:.2%}")
+    except Exception as e:
+        st.error(f"Prediction failed: {e}")
 
 if __name__ == "__main__":
     main()
