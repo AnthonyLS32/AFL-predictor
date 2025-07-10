@@ -1,0 +1,9 @@
+match_id,date,round,year,home_team,away_team,home_score,away_score,venue,winner
+1,2023-05-05,8,2023,Geelong,Carlton,85,70,GMHBA Stadium,Geelong
+2,2023-05-06,8,2023,Melbourne,Collingwood,75,80,MCG,Collingwood
+3,2023-05-07,8,2023,Richmond,Hawthorn,90,60,MCG,Richmond
+4,2023-05-12,9,2023,Collingwood,Carlton,82,77,MCG,Collingwood
+5,2023-05-13,9,2023,Melbourne,Geelong,95,70,MCG,Melbourne
+6,2023-05-14,9,2023,Hawthorn,Richmond,65,90,MCG,Richmond
+7,2022-06-04,12,2022,Carlton,Richmond,70,72,Marvel Stadium,Richmond
+8,2022-06-05,12,2022,Geelong,Hawthorn,80,55,GMHBA Stadium,Geelong
