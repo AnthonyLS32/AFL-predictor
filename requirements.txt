@@ -1,5 +1,7 @@
 streamlit
+requests
+beautifulsoup4
+lxml
 pandas
 scikit-learn
 joblib
-matplotlib
