@@ -27,7 +27,7 @@ def load_data():
     def is_home(row):
         return int(row["venue"] in TEAM_HOME_GROUNDS.get(row["home_team"], []))
 
-    df["home_team_recent_form"] = 0.6  # dummy default — for real model you’d recalc
+    df["home_team_recent_form"] = 0.6
     df["away_team_recent_form"] = 0.4
     df["is_home_advantage"] = df.apply(is_home, axis=1)
     df["home_team_won"] = (df["winner"] == df["home_team"]).astype(int)
