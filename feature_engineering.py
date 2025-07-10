@@ -8,7 +8,6 @@ TEAM_HOME_GROUNDS = {
     "Collingwood": ["MCG"],
     "Richmond": ["MCG"],
     "Carlton": ["MCG", "Marvel Stadium"],
-    # Extend as needed
 }
 
 def get_team_recent_form(team, match_date):
@@ -27,7 +26,7 @@ def get_team_recent_form(team, match_date):
     conn.close()
 
     if not results:
-        return 0.5  # If no data, neutral
+        return 0.5
 
     wins = sum(1 for r in results if r[0] == team)
     return wins / len(results)
