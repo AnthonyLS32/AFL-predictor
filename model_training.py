@@ -18,37 +18,37 @@ TEAM_HOME_GROUNDS = {
 
 def load_data():
     conn = sqlite3.connect(DB_NAME)
-    df = pd.read_sql_query("SELECT * FROM matches WHERE winner IS NOT NULL", conn)
+    df = pd.read_sql_query(
+        "SELECT * FROM matches WHERE winner IS NOT NULL AND year >= 2010",
+        conn
+    )
     conn.close()
 
-    def is_home_advantage(row):
+    def is_home(row):
         return int(row["venue"] in TEAM_HOME_GROUNDS.get(row["home_team"], []))
 
-    df["home_team_recent_form"] = 0.5  # Dummy — replace with real stats
+    df["home_team_recent_form"] = 0.6  # dummy default — for real model you’d recalc
     df["away_team_recent_form"] = 0.4
-    df["is_home_advantage"] = df.apply(is_home_advantage, axis=1)
+    df["is_home_advantage"] = df.apply(is_home, axis=1)
     df["home_team_won"] = (df["winner"] == df["home_team"]).astype(int)
 
     return df
 
-def train_and_save():
+def train_model():
     df = load_data()
-
-    feature_cols = ["home_team_recent_form", "away_team_recent_form", "is_home_advantage"]
-    X = df[feature_cols]
+    X = df[["home_team_recent_form", "away_team_recent_form", "is_home_advantage"]]
     y = df["home_team_won"]
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model = RandomForestClassifier(n_estimators=100)
     model.fit(X_train, y_train)
 
-    y_pred = model.predict(X_test)
-    acc = accuracy_score(y_test, y_pred)
-    print(f"✅ Model trained! Accuracy: {acc:.2%}")
+    acc = accuracy_score(y_test, model.predict(X_test))
+    print(f"✅ Model trained. Accuracy: {acc:.2%}")
 
     joblib.dump(model, MODEL_FILE)
-    print(f"✅ Model saved as {MODEL_FILE}")
+    print(f"✅ Model saved to {MODEL_FILE}")
 
 if __name__ == "__main__":
-    train_and_save()
+    train_model()
