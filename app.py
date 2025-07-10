@@ -12,13 +12,25 @@ DB_NAME = "afl_stats.db"
 def ensure_db():
     if not os.path.exists(DB_NAME):
         create_tables()
-        import_matches()
-        import_player_stats()
+        if os.path.exists("matches.csv"):
+            import_matches()
+        else:
+            st.warning("⚠️ matches.csv not found. Skipping matches import.")
+        if os.path.exists("player_stats.csv"):
+            import_player_stats()
+        else:
+            st.warning("⚠️ player_stats.csv not found. Skipping player stats import.")
+    else:
+        st.info("✅ Database ready.")
 
 ensure_db()
 
 @st.cache_data
 def get_matches():
+    if not os.path.exists(DB_NAME):
+        st.error("❌ Database not found. Please create it first.")
+        return []
+
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     cur.execute("""
@@ -36,7 +48,7 @@ def main():
 
     matches = get_matches()
     if not matches:
-        st.error("No matches found. Please check your DB.")
+        st.error("❌ No matches found in DB.")
         return
 
     match = st.selectbox(
@@ -47,7 +59,7 @@ def main():
     match_id = match[0]
 
     features = generate_features_for_match(match_id)
-    st.write("Match Features:", features)
+    st.write("🔍 **Match Features:**", features)
 
     try:
         prob = predict_win_probability(features)
