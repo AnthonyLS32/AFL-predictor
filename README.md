@@ -1,16 +1,22 @@
-# AFL Win Probability Predictor
+# 🏉 AFL Win Predictor
 
-This project builds an AFL match win probability predictor using historical match and player stats.
+## 🔑 How to Use
 
-## Features
+1. Clone the repo  
+2. Install dependencies  
+3. Make sure you have `model.pkl` (run training if needed).
+4. Run it:  
+5. The app will:
+- Scrape upcoming fixture
+- Show match picker
+- Fallback to manual upload if scraping fails
+- Predict win probability for your selected team list
 
-- Data import and database setup scripts
-- Feature engineering to create team and player aggregated stats
-- Random Forest model to predict match outcomes
-- Streamlit app for interactive prediction and lineup management
-- Visualizations of recent team form
-- Caching to speed up data loading and predictions
+---
 
-## Setup
+## ⚙️ Training the Model
+Use your `matches.csv` and `player_stats.csv` — train separately and save `model.pkl`.
 
-1. Create
+---
+
+✅ **Plug & Play!**
