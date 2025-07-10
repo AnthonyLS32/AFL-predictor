@@ -1,3 +1,11 @@
+"""
+app.py
+AFL Win Probability Predictor — Streamlit app
+- Scrapes AFLTables data automatically on first run if needed
+- Builds SQLite database from scraped data
+- Predicts win probabilities using trained model
+"""
+
 import os
 import sqlite3
 import streamlit as st
@@ -12,6 +20,10 @@ MATCHES_CSV = "matches.csv"
 PLAYER_STATS_CSV = "player_stats.csv"
 
 def run_scraper():
+    """
+    Scrape match results and player stats from AFLTables for 2010-current.
+    Saves to matches.csv and player_stats.csv.
+    """
     st.info("Starting AFL data scrape (this may take several minutes)...")
     BASE_URL = "https://afltables.com/afl/seas/"
     YEARS = range(2010, 2025)
@@ -122,11 +134,17 @@ def run_scraper():
 
 @st.cache_data(show_spinner=False)
 def ensure_data():
+    """
+    Checks if CSV files exist, otherwise runs scraper.
+    """
     if not (os.path.exists(MATCHES_CSV) and os.path.exists(PLAYER_STATS_CSV)):
         run_scraper()
 
 @st.cache_data(show_spinner=False)
 def setup_database():
+    """
+    Creates database and imports CSV data.
+    """
     import database_setup
     import data_import
 
@@ -135,6 +153,9 @@ def setup_database():
     data_import.import_player_stats(PLAYER_STATS_CSV)
 
 def get_matches():
+    """
+    Loads all matches from DB.
+    """
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     cur.execute("""
