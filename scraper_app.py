@@ -3,10 +3,11 @@ import requests
 from bs4 import BeautifulSoup
 import csv
 import time
+import string
 
 BASE_URL = "https://afltables.com/afl/seas/"
 START_YEAR = 2010
-END_YEAR = 2024  # Update this to current year as needed
+END_YEAR = 2024  # Update as needed
 
 def scrape_matches():
     matches = []
@@ -22,7 +23,7 @@ def scrape_matches():
         soup = BeautifulSoup(res.content, "html.parser")
         tables = soup.find_all("table", {"class": "sortable"})
         if not tables:
-            st.warning(f"No match tables found for year {year}")
+            st.warning(f"No match tables found for {year}")
             continue
 
         for table in tables:
@@ -42,43 +43,50 @@ def scrape_matches():
                 matches.append([
                     match_id, home_team, away_team, date, venue, home_score, away_score
                 ])
-        time.sleep(1)  # polite pause between requests
+        time.sleep(1)
     return matches
 
 def scrape_player_stats():
     players = []
-    url = "https://afltables.com/afl/stats/alltime/players.html"
-    try:
-        res = requests.get(url, timeout=20)
-        res.raise_for_status()
-    except Exception as e:
-        st.error(f"Failed to load player stats: {e}")
-        return players
+    letters = list(string.ascii_uppercase)
 
-    soup = BeautifulSoup(res.content, "html.parser")
-    table = soup.find("table")
-    if table is None:
-        st.error("Player stats table not found on page.")
-        return players
-
-    rows = table.find_all("tr")[1:]
-    for row in rows:
-        cells = row.find_all("td")
-        if len(cells) < 8:
-            continue
-        name = cells[0].text.strip()
-        team = cells[1].text.strip()
-        games = cells[2].text.strip()
-        goals = cells[3].text.strip()
+    for letter in letters:
+        index_url = f"https://afltables.com/afl/stats/players{letter}.html"
         try:
-            games_played = int(games)
-            goals_scored = int(goals)
-            avg_goals = round(goals_scored / games_played, 2) if games_played > 0 else 0
-        except:
+            res = requests.get(index_url, timeout=15)
+            res.raise_for_status()
+        except Exception as e:
+            st.warning(f"Could not load index for letter {letter}: {e}")
             continue
-        players.append([
-            name, team, games_played, avg_goals
-        ])
+
+        soup = BeautifulSoup(res.content, "html.parser")
+        player_links = soup.select("table a")
+
+        for link in player_links:
+            player_name = link.text.strip()
+            href = link.get("href")
+            player_url = f"https://afltables.com/afl/stats/{href}"
+
+            try:
+                pres = requests.get(player_url, timeout=10)
+                pres.raise_for_status()
+                psoup = BeautifulSoup(pres.content, "html.parser")
+                tables = psoup.find_all("table")
+                if len(tables) < 2:
+                    continue
+
+                rows = tables[-1].find_all("tr")
+                for row in rows:
+                    cells = row.find_all("td")
+                    if len(cells) >= 5 and cells[0].text.strip() == "Career":
+                        games_played = int(cells[1].text.strip())
+                        goals = int(cells[4].text.strip())
+                        avg_goals = round(goals / games_played, 2) if games_played > 0 else 0
+                        players.append([player_name, "N/A", games_played, avg_goals])
+                        break
+                time.sleep(0.1)
+            except Exception:
+                continue
     return players
 
 def save_csv(filename, rows, headers):
@@ -91,7 +99,7 @@ def save_csv(filename, rows, headers):
     except Exception as e:
         st.error(f"Failed to save {filename}: {e}")
 
-st.set_page_config(page_title="🏉 AFLTables Scraper", layout="centered")
+st.set_page_config(page_title="🏉 AFL Scraper", layout="centered")
 st.title("🏉 AFLTables Historical Data Scraper")
 
 if st.button("🚀 Run Scraper Now"):
@@ -110,12 +118,3 @@ if st.button("🚀 Run Scraper Now"):
         st.warning("No player stats scraped.")
 
     st.info("You can re-run the scraper anytime to refresh the data.")
-
-st.markdown("""
----
-**Notes:**
-- Scrapes historical AFL matches from 2010 to current year.
-- Scrapes all-time player stats from AFLTables.
-- Make sure you have internet access.
-- Polite pauses added to avoid overwhelming the server.
-""")
