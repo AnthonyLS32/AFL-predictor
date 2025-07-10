@@ -1,36 +1,140 @@
 import os
 import sqlite3
 import streamlit as st
-from database_setup import create_tables
-from data_import import import_matches, import_player_stats
+import csv
+from bs4 import BeautifulSoup
+import requests
 from predictor import predict_win_probability
 from feature_engineering import generate_features_for_match
 
 DB_NAME = "afl_stats.db"
+MATCHES_CSV = "matches.csv"
+PLAYER_STATS_CSV = "player_stats.csv"
 
-@st.cache_resource
-def ensure_db():
-    if not os.path.exists(DB_NAME):
-        create_tables()
-        if os.path.exists("matches.csv"):
-            import_matches()
-        else:
-            st.warning("⚠️ matches.csv not found. Skipping matches import.")
-        if os.path.exists("player_stats.csv"):
-            import_player_stats()
-        else:
-            st.warning("⚠️ player_stats.csv not found. Skipping player stats import.")
-    else:
-        st.info("✅ Database ready.")
+def run_scraper():
+    st.info("Starting AFL data scrape (this may take several minutes)...")
+    BASE_URL = "https://afltables.com/afl/seas/"
+    YEARS = range(2010, 2025)
 
-ensure_db()
+    match_id_counter = 1
 
-@st.cache_data
+    matches_file = open(MATCHES_CSV, mode="w", newline="", encoding="utf-8")
+    matches_writer = csv.writer(matches_file)
+    matches_writer.writerow([
+        "match_id", "date", "round", "year",
+        "home_team", "away_team",
+        "home_score", "away_score",
+        "venue", "winner"
+    ])
+
+    player_stats_file = open(PLAYER_STATS_CSV, mode="w", newline="", encoding="utf-8")
+    player_stats_writer = csv.writer(player_stats_file)
+    player_stats_writer.writerow([
+        "match_id", "player_name", "team",
+        "goals", "disposals", "marks", "tackles"
+    ])
+
+    def parse_score(score_str):
+        if "(" in score_str:
+            return int(score_str.split("(")[-1].split(")")[0])
+        return 0
+
+    def clean_name(name):
+        return name.strip().replace('\xa0', ' ')
+
+    progress_bar = st.progress(0)
+    total_years = len(YEARS)
+    for idx, year in enumerate(YEARS):
+        url = f"{BASE_URL}{year}.html"
+        try:
+            res = requests.get(url, timeout=20)
+            res.raise_for_status()
+        except Exception as e:
+            st.warning(f"Warning: failed to fetch data for {year} ({e}), skipping.")
+            continue
+
+        soup = BeautifulSoup(res.text, "html.parser")
+        tables = soup.find_all("table")
+        for table in tables:
+            rows = table.find_all("tr")
+            for row in rows:
+                cells = row.find_all("td")
+                if len(cells) >= 10:
+                    date = cells[0].text.strip()
+                    round_num = cells[1].text.strip().replace("Round ", "")
+                    home_team = clean_name(cells[2].text)
+                    home_score = parse_score(cells[3].text)
+                    away_team = clean_name(cells[6].text)
+                    away_score = parse_score(cells[7].text)
+                    venue = clean_name(cells[9].text)
+                    winner = home_team if home_score > away_score else away_team
+
+                    matches_writer.writerow([
+                        match_id_counter, date, round_num, year,
+                        home_team, away_team,
+                        home_score, away_score,
+                        venue, winner
+                    ])
+
+                    link = cells[10].find("a")
+                    if link and "href" in link.attrs:
+                        match_url = "https://afltables.com/afl/stats/" + link["href"]
+                        try:
+                            match_res = requests.get(match_url, timeout=20)
+                            match_res.raise_for_status()
+                        except Exception as e:
+                            st.warning(f"Warning: failed to fetch match stats for match {match_id_counter} ({e}), skipping player stats.")
+                            match_id_counter += 1
+                            continue
+
+                        match_soup = BeautifulSoup(match_res.text, "html.parser")
+                        stat_tables = match_soup.find_all("table", {"class": "sortable"})
+
+                        for stat_table in stat_tables[:2]:
+                            team_header = stat_table.find_previous("b")
+                            team_name = clean_name(team_header.text) if team_header else "Unknown"
+                            stat_rows = stat_table.find_all("tr")[2:]
+
+                            for stat_row in stat_rows:
+                                stat_cells = stat_row.find_all("td")
+                                if len(stat_cells) > 10:
+                                    player_name = clean_name(stat_cells[1].text)
+                                    try:
+                                        goals = int(stat_cells[6].text)
+                                        disposals = int(stat_cells[9].text)
+                                        marks = int(stat_cells[10].text)
+                                        tackles = int(stat_cells[12].text)
+                                    except:
+                                        goals = disposals = marks = tackles = 0
+
+                                    player_stats_writer.writerow([
+                                        match_id_counter, player_name, team_name,
+                                        goals, disposals, marks, tackles
+                                    ])
+
+                    match_id_counter += 1
+
+        progress_bar.progress((idx + 1) / total_years)
+
+    matches_file.close()
+    player_stats_file.close()
+    st.success("✅ Scraping complete: matches.csv and player_stats.csv saved.")
+
+@st.cache_data(show_spinner=False)
+def ensure_data():
+    if not (os.path.exists(MATCHES_CSV) and os.path.exists(PLAYER_STATS_CSV)):
+        run_scraper()
+
+@st.cache_data(show_spinner=False)
+def setup_database():
+    import database_setup
+    import data_import
+
+    database_setup.create_tables()
+    data_import.import_matches(MATCHES_CSV)
+    data_import.import_player_stats(PLAYER_STATS_CSV)
+
 def get_matches():
-    if not os.path.exists(DB_NAME):
-        st.error("❌ Database not found. Please create it first.")
-        return []
-
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     cur.execute("""
@@ -46,26 +150,26 @@ def get_matches():
 def main():
     st.title("🏉 AFL Win Probability Predictor")
 
+    with st.spinner("Checking and preparing data... this can take several minutes initially"):
+        ensure_data()
+        setup_database()
+
     matches = get_matches()
     if not matches:
-        st.error("❌ No matches found in DB.")
-        return
+        st.error("❌ No matches found in the database after setup.")
+        st.stop()
 
-    match = st.selectbox(
-        "Pick a match",
-        matches,
-        format_func=lambda m: f"{m[5]} R{m[4]}: {m[1]} vs {m[2]} ({m[3]})"
-    )
-    match_id = match[0]
+    match_options = [f"{row[5]} R{row[4]}: {row[1]} vs {row[2]} ({row[3]})" for row in matches]
+    selected = st.selectbox("Select a match", options=match_options)
+    selected_match_id = matches[match_options.index(selected)][0]
 
-    features = generate_features_for_match(match_id)
-    st.write("🔍 **Match Features:**", features)
+    features = generate_features_for_match(selected_match_id)
+    st.subheader("Match Features")
+    st.json(features)
 
-    try:
-        prob = predict_win_probability(features)
-        st.success(f"🏆 Home Win Probability: {prob:.2%}")
-    except Exception as e:
-        st.error(f"Prediction failed: {e}")
+    prob = predict_win_probability(features)
+    home_team = matches[match_options.index(selected)][1]
+    st.markdown(f"### Probability {home_team} (home team) wins: **{prob:.2%}**")
 
 if __name__ == "__main__":
     main()
